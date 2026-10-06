@@ -12562,8 +12562,17 @@ static void rtw_mlmeext_disconnect(_adapter *padapter)
 		self_action = MLME_ADHOC_STOPPED;
 	else if (MLME_IS_NULL(padapter))
 		self_action = MLME_ACTION_NONE;
-	else {
-		RTW_INFO("state:0x%x\n", MLME_STATE(padapter));
+	else if ((MLME_STATE(padapter) & (WIFI_STATION_STATE | WIFI_AP_STATE
+			| WIFI_ADHOC_STATE | WIFI_ADHOC_MASTER_STATE | WIFI_MESH_STATE
+			| WIFI_MONITOR_STATE | WIFI_MP_STATE)) == 0) {
+		/* No role assigned yet, only transient bits are set (e.g. SCAN,
+		 * 0x00000800). Seen when hostapd closes a freshly loaded interface
+		 * to switch it to AP mode while a scan is pending: there is nothing
+		 * to disconnect, handle it like the NULL state. */
+		self_action = MLME_ACTION_NONE;
+	} else {
+		pr_warn("RTW: %s: unexpected mlme state 0x%08x\n",
+			__func__, MLME_STATE(padapter));
 		rtw_warn_on(1);
 	}
 
