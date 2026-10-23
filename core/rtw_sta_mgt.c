@@ -237,12 +237,29 @@ u32	_rtw_init_sta_priv(struct	sta_priv *pstapriv)
 
 	pstapriv->padapter = adapter;
 
-	pstapriv->pallocated_stainfo_buf = rtw_zvmalloc(sizeof(struct sta_info) * NUM_STA + 4);
+	/*
+	 * STA-ALIGN8: align the sta_info pool to 8 bytes, not 4.
+	 * sizeof(struct sta_info) is a multiple of 8 on arm64 (embedded
+	 * timer_list / hlist nodes and 64-bit members), so the C contract
+	 * requires 8-byte alignment. With the old 4-byte adjustment every
+	 * sta_info could land at addr%8==4; on kernels built with
+	 * CONFIG_LTO the arm64 READ_ONCE compiles to an LDAR, which faults
+	 * with an alignment fault (ESR 0x96000021) on such addresses —
+	 * observed as a panic in __try_to_del_timer_sync() during teardown
+	 * (timer->entry.pprev at node+0x7b8, 4 mod 8) on every
+	 * unregister. vmalloc already returns page-aligned memory, so on
+	 * 64-bit the adjustment is a no-op; this only guards the 32-bit
+	 * case and the +8/-&7 pair keeps every sta_info 8-byte aligned.
+	 */
+	pstapriv->pallocated_stainfo_buf = rtw_zvmalloc(sizeof(struct sta_info) * NUM_STA + 8);
 	if (!pstapriv->pallocated_stainfo_buf)
 		goto exit;
 
-	pstapriv->pstainfo_buf = pstapriv->pallocated_stainfo_buf + 4 -
-			 ((SIZE_PTR)(pstapriv->pallocated_stainfo_buf) & 3);
+	pstapriv->pstainfo_buf = pstapriv->pallocated_stainfo_buf + 8 -
+			 ((SIZE_PTR)(pstapriv->pallocated_stainfo_buf) & 7);
+
+	RTW_INFO("STA-ALIGN8: sta_info pool %d bytes @%p\n",
+		 (int)(sizeof(struct sta_info) * NUM_STA + 8), pstapriv->pstainfo_buf);
 
 	_rtw_init_queue(&pstapriv->free_sta_queue);
 
@@ -320,7 +337,7 @@ u32	_rtw_init_sta_priv(struct	sta_priv *pstapriv)
 exit:
 	if (ret != _SUCCESS) {
 		if (pstapriv->pallocated_stainfo_buf)
-			rtw_vmfree(pstapriv->pallocated_stainfo_buf, sizeof(struct sta_info) * NUM_STA + 4);
+			rtw_vmfree(pstapriv->pallocated_stainfo_buf, sizeof(struct sta_info) * NUM_STA + 8);
 		#ifdef CONFIG_AP_MODE
 		if (pstapriv->sta_aid)
 			rtw_mfree(pstapriv->sta_aid, pstapriv->max_aid * sizeof(struct sta_info *));
@@ -438,7 +455,7 @@ u32	_rtw_free_sta_priv(struct	sta_priv *pstapriv)
 #endif
 
 		if (pstapriv->pallocated_stainfo_buf)
-			rtw_vmfree(pstapriv->pallocated_stainfo_buf, sizeof(struct sta_info) * NUM_STA + 4);
+			rtw_vmfree(pstapriv->pallocated_stainfo_buf, sizeof(struct sta_info) * NUM_STA + 8);
 		#ifdef CONFIG_AP_MODE
 		if (pstapriv->sta_aid)
 			rtw_mfree(pstapriv->sta_aid, pstapriv->max_aid * sizeof(struct sta_info *));
