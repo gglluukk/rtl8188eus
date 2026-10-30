@@ -1219,8 +1219,14 @@ void rtw_cfg80211_indicate_disconnect(_adapter *padapter, u16 reason, u8 locally
 
 		if (pwdev->sme_state == CFG80211_SME_CONNECTING) {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result\n", FUNC_ADPT_ARG(padapter));
+			/* Report a connect failure with a real failure status: the
+			 * disconnect reason is not a status code, and reason 0 (or a
+			 * private reason, mapped to 0 above) means WLAN_STATUS_SUCCESS.
+			 * cfg80211 then handles it as a successful connection without
+			 * a BSSID and dereferences NULL in __cfg80211_connect_result()
+			 * on 6.x kernels. */
 			rtw_cfg80211_connect_result(pwdev, NULL, NULL, 0, NULL, 0,
-				reason, GFP_ATOMIC);
+				WLAN_STATUS_UNSPECIFIED_FAILURE, GFP_ATOMIC);
 		} else if (pwdev->sme_state == CFG80211_SME_CONNECTED) {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_disconnected\n", FUNC_ADPT_ARG(padapter));
 			rtw_cfg80211_disconnected(pwdev, reason, NULL, 0, locally_generated, GFP_ATOMIC);
@@ -1230,8 +1236,14 @@ void rtw_cfg80211_indicate_disconnect(_adapter *padapter, u16 reason, u8 locally
 		#else
 		if (pwdev_priv->connect_req) {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result\n", FUNC_ADPT_ARG(padapter));
+			/* Report a connect failure with a real failure status: the
+			 * disconnect reason is not a status code, and reason 0 (or a
+			 * private reason, mapped to 0 above) means WLAN_STATUS_SUCCESS.
+			 * cfg80211 then handles it as a successful connection without
+			 * a BSSID and dereferences NULL in __cfg80211_connect_result()
+			 * on 6.x kernels. */
 			rtw_cfg80211_connect_result(pwdev, NULL, NULL, 0, NULL, 0,
-				reason, GFP_ATOMIC);
+				WLAN_STATUS_UNSPECIFIED_FAILURE, GFP_ATOMIC);
 		} else {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_disconnected\n", FUNC_ADPT_ARG(padapter));
 			rtw_cfg80211_disconnected(pwdev, reason, NULL, 0, locally_generated, GFP_ATOMIC);

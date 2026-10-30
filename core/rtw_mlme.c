@@ -2644,6 +2644,13 @@ void rtw_sta_mstatus_disc_rpt(_adapter *adapter, u8 mac_id)
 {
 	struct macid_ctl_t *macid_ctl = &adapter->dvobj->macid_ctl;
 
+	/* Station deleted before a macid was assigned (association aborted
+	 * while joining): nothing to report to the firmware. */
+	if (mac_id == 0xFF) {
+		RTW_INFO(FUNC_ADPT_FMT" - no macid assigned, skip\n", FUNC_ADPT_ARG(adapter));
+		return;
+	}
+
 	if (mac_id >= 0 && mac_id < macid_ctl->num) {
 		u8 id_is_shared = mac_id == RTW_DEFAULT_MGMT_MACID; /* TODO: real shared macid judgment */
 
